@@ -15,9 +15,40 @@ class BulletOfferPopup {
         add_action('admin_init', array($this, 'register_settings'));
         add_action('wp_footer', array($this, 'inject_popup_html'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
-        add_action('woocommerce_before_calculate_totals', array($this, 'apply_bullet_offer_discount'));
-        add_filter('woocommerce_add_cart_item_data', array($this, 'mark_bullet_offer_cart_item'), 10, 3);
 
+        // there is a problem with this section.
+        add_action('woocommerce_before_calculate_totals', function($cart) {
+            if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) return;
+            if (!isset($_COOKIE['bullet_offer']) || $_COOKIE['bullet_offer'] !== '1') return;
+
+            $discount_percent = (float) get_option('bop_discount_percentage', 10);
+
+            foreach ($cart->get_cart() as $cart_item) {
+                if ($cart_item['data'] instanceof WC_Product) {
+                    $original_price = $cart_item['data']->get_regular_price();
+                    $discounted_price = $original_price * ((100 - $discount_percent) / 100);
+                    $cart_item['data']->set_price($discounted_price);
+                }
+            }
+        });
+
+        add_action('template_redirect', function() {
+            if (is_checkout() && isset($_COOKIE['bullet_offer']) && $_COOKIE['bullet_offer'] === '1') {
+                WC()->cart->calculate_totals();
+            }
+        });
+
+
+        add_action('woocommerce_thankyou', function() {
+            setcookie('bullet_offer', '', time() - 3600, '/');
+        });
+
+        add_filter('woocommerce_add_to_cart_redirect', function($url) {
+            if (isset($_GET['bullet_offer']) && $_GET['bullet_offer'] === '1') {
+                return wc_get_checkout_url();
+            }
+            return $url;
+        });
     }
 
     public function create_settings_menu() {
@@ -34,11 +65,11 @@ class BulletOfferPopup {
         register_setting('bullet_offer_settings', 'bop_scroll_trigger');
         register_setting('bullet_offer_settings', 'bop_display_time');
         register_setting('bullet_offer_settings', 'bop_message');
-/*         register_setting('bullet_offer_settings', 'bop_product_id'); */
         register_setting('bullet_offer_settings', 'bop_discount');
         register_setting('bullet_offer_settings', 'bop_popup_width');
         register_setting('bullet_offer_settings', 'bop_popup_height');
         register_setting('bullet_offer_settings', 'bop_cooldown');
+        register_setting('bullet_offer_settings', 'bop_discount_percentage');
     }
 
     public function settings_page_html() {
@@ -75,6 +106,10 @@ class BulletOfferPopup {
                         <th scope="row">Cooldown Period (hours)</th>
                         <td><input type="number" name="bop_cooldown" value="<?php echo esc_attr(get_option('bop_cooldown', 24)); ?>" /></td>
                     </tr>
+                    <tr valign="top">
+                        <th scope="row">Discount Percentage</th>
+                    <td><input type="number" name="bop_discount_percentage" value="<?php echo esc_attr(get_option('bop_discount_percentage', 10)); ?>" min="1" max="100" />%</td>
+                    </tr>
                 </table>
                 <?php submit_button(); ?>
             </form>
@@ -106,12 +141,7 @@ class BulletOfferPopup {
                     ),
                 ),
                 'meta_query' => array(
-                    array(
-                        'key' => '_stock',
-                        'value' => 5,
-                        'compare' => '>=',
-                        'type' => 'NUMERIC',
-                    ),
+                    'relation' => 'AND',
                     array(
                         'key' => '_stock_status',
                         'value' => 'instock',
@@ -120,12 +150,81 @@ class BulletOfferPopup {
             );
 
             $products = get_posts($product_props);
-            if (!empty($products)) {
-                $random_product = $products[array_rand($products)];
-                $product_id = $random_product->ID;
-                $title = get_the_title($product_id);
-                $image_url = get_the_post_thumbnail_url($product_id, 'thumbnail');
+
+            $eligible_products = array();
+
+            foreach ($products as $product_post) {
+                $product = wc_get_product($product_post->ID);
+                if (!$product) continue;
+
+                if ($product->is_type('variable')) {
+                    $total_stock = 0;
+                    foreach ($product->get_children() as $child_id) {
+                        $variation = wc_get_product($child_id);
+                        if ($variation && $variation->is_in_stock()) {
+                            $total_stock += $variation->get_stock_quantity() ?? 0;
+                        }
+                    }
+                    if ($total_stock >= 5) {
+                        $eligible_products[] = $product;
+                    }
+                } else {
+                   $stock = $product->get_stock_quantity() ?? 0;
+                   if ($stock >= 5) {
+                       $eligible_products[] = $product;
+                   }
+                }
             }
+
+            if (!empty($eligible_products)) {
+                $random_product = $eligible_products[array_rand($eligible_products)];
+
+                if ($random_product->is_type('variable') && isset($random_product)) {
+                    $variations = $random_product->get_children();
+                    $in_stock_variations = [];
+
+                    foreach ($variations as $variation_id) {
+                        $variation = wc_get_product($variation_id);
+                        if ($variation && $variation->is_in_stock()) {
+                            $in_stock_variations[] = $variation;
+                        }
+                    }
+
+                    if (!empty($in_stock_variations)) {
+                        $random_product = $in_stock_variations[array_rand($in_stock_variations)];
+                    } else {
+                        // no in-stock variations, skip popup
+                        return;
+                    }
+
+                } elseif ($random_product->is_type('grouped') && isset($random_product)) {
+                    $children_ids = $random_product->get_children();
+                    $in_stock_children = [];
+
+                    foreach ($children_ids as $child_id) {
+                        $child = wc_get_product($child_id);
+                        if ($child && $child->is_in_stock()) {
+                            $in_stock_children[] = $child;
+                        }
+                    }
+
+                    if (!empty($in_stock_children)) {
+                        $random_product = $in_stock_children[array_rand($in_stock_children)];
+                    } else {
+                        // no in-stock group children, skip popup
+                        return;
+                    }
+                }
+            }
+
+            if (isset($random_product)) {
+                        $product_id = $random_product->get_id();
+                        $title = get_the_title($product_id);
+                        $image_url = get_the_post_thumbnail_url($product_id, 'thumbnail');
+            }
+
+
+
         }
 
         wp_enqueue_script('jquery');
@@ -152,25 +251,7 @@ class BulletOfferPopup {
         ));
     }
 
-    public function apply_bullet_offer_discount($cart) {
-        if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) return;
 
-        foreach ($cart->get_cart() as $cart_item_key => $cart_item) {
-            // Apply discount if cart came from bullet offer link
-            if (!empty($cart_item['bullet_offer'])) {
-                $original_price = $cart_item['data']->get_price();
-                $discounted_price = $original_price * 0.90; // 10% off
-                $cart_item['data']->set_price($discounted_price);
-            }
-        }
-    }
-
-    public function mark_bullet_offer_cart_item($cart_item_data, $product_id, $variation_id) {
-        if (isset($_GET['bullet_offer']) && $_GET['bullet_offer'] == '1') {
-            $cart_item_data['bullet_offer'] = true;
-        }
-        return $cart_item_data;
-    }
 
     public function inject_popup_html() {
         echo '<div id="bop-popup">

@@ -2,17 +2,20 @@
     let popupShown = false;
     const cooldownKey = 'bop_last_shown';
 
-    // Check cooldown from localStorage
-    const lastShown = localStorage.getItem(cooldownKey);
-    if (lastShown) {
-        const daysAgo = (Date.now() - parseInt(lastShown, 10)) / (1000 * 60 * 60 * 24); // convert ms to days
-        if (daysAgo < bopData.cooldown) return;
-    }
 
     $(window).on('scroll', function() {
         if (popupShown) return;
 
-        if ($(window).scrollTop() > bopData.scrollTrigger) {
+        if ($(window).scrollTop() > bopData.scrollTrigger && bopData.productID !== '0') {
+
+            // Check cooldown from localStorage
+            const lastShown = localStorage.getItem(cooldownKey);
+            if (lastShown) {
+                const daysAgo = (Date.now() - parseInt(lastShown, 10)) / (1000 * 60 * 60 * 24); // convert ms to days
+                if (daysAgo < bopData.cooldown) return;
+            }
+
+
             popupShown = true;
 
             const popup = $('#bop-popup');
@@ -73,7 +76,10 @@
 
             $('#bop-checkout').on('click', function() {
                 localStorage.setItem(cooldownKey, Date.now().toString());
-                window.location.href = '/checkout/?add-to-cart=' + bopData.productID+'&bullet_offer=1';
+                document.cookie = "bullet_offer=1; path=/";
+                setTimeout(function () {
+                    window.location.href = '/?add-to-cart=' + bopData.productID + '&bullet_offer=1';
+                }, 300)
             });
         }
     });
