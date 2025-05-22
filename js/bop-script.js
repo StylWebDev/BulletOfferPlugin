@@ -19,26 +19,40 @@
             popupShown = true;
 
             const popup = $('#bop-popup');
-            popup.css({
-                width: bopData.width + 'px',
-                height: bopData.height + 'px',
+            if ( window.matchMedia("(max-width: 768px)").matches) {
+                popup.css({
+                    width: 90 + 'vw',
+                    height: bopData.height + 'px',
+                });
+            }
+            else {
+                popup.css({
+                    width: bopData.width + 'px',
+                    height: bopData.height + 'px',
+                })
+            }
+
+            $('#bop-popup').css({
+                'background-color': bopData.backgroundColor,
+                'color': bopData.textColor
             });
+
 
             $('#bop-content').html(`
                 <div style="overflow:hidden;">
-                    <h4 style="text-align: center; margin-bottom: 2px">${bopData.title}</h4>
-                    <p style="text-align: center;margin-bottom: 2px; font-weight: bold;  ">${bopData.message.toUpperCase()}</p>
+                    <h4 id="bop-title" style="text-align: center; margin-bottom: 2px">${bopData.title}</h4>
+                    <p  style="text-align: center;margin-bottom: 2px; font-weight: bold;  ">${bopData.message.toUpperCase()}</p>
                     <div id="offer">
                       <img id="product_img" src="${bopData.image}" alt="${bopData.title}" ">                 
                       <span>${bopData.discount}</span>
                     </div>
                     
                     
-                    <p id="bop-timer" style="text-align: center; margin-bottom: 2px">
-                    <span >00</span> : <span >00</span> : <span id="bop-countdown">${bopData.displayTime}</span>
+                    <p id="bop-timer" style="text-align: center; margin-bottom: 2px; margin-top: 10px">
+                    <span >00</span> : <span>00</span> : <span id="bop-countdown">${bopData.displayTime}</span>
                     </p>
                     <div id="bop-progress-container" style="width:100%;background:#000000;border-radius:5px;overflow:hidden;margin-top:10px;">
-                        <div id="bop-progress-bar" style="height:10px;width:0;background:red;"></div>
+                        <div id="bop-progress-bar" style="height:10px;width:0;;"></div>
                     </div>
                    
                     <button id="bop-checkout">
@@ -49,6 +63,14 @@
             `);
 
             popup.css({ visibility: 'visible', opacity: '1' });
+
+            $('#btn-img') .attr("src",`https://api.iconify.design/fluent:payment-28-filled.svg?color=%23${bopData.btnTextColor.replace('#','')}`);
+            $('#bop-timer span').css('background', bopData.textColor);
+            $('#bop-countdown').css('background', bopData.msgColor)
+            $('#bop-title').css('color', bopData.textColor + 'BB')
+            $('#bop-checkout').css({background: bopData.btnBackgroundColor, color: bopData.btnTextColor})
+            $('#offer span').css('color', bopData.msgColor)
+            $('#bop-progress-bar').css('background', bopData.msgColor)
 
             let countdown = bopData.displayTime;
             const countdownInterval = setInterval(() => {

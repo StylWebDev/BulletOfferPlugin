@@ -49,6 +49,7 @@ class BulletOfferPopup {
             }
             return $url;
         });
+
     }
 
     public function create_settings_menu() {
@@ -66,10 +67,15 @@ class BulletOfferPopup {
         register_setting('bullet_offer_settings', 'bop_display_time');
         register_setting('bullet_offer_settings', 'bop_message');
         register_setting('bullet_offer_settings', 'bop_discount');
+        register_setting('bullet_offer_settings', 'bop_message_color');
         register_setting('bullet_offer_settings', 'bop_popup_width');
         register_setting('bullet_offer_settings', 'bop_popup_height');
         register_setting('bullet_offer_settings', 'bop_cooldown');
         register_setting('bullet_offer_settings', 'bop_discount_percentage');
+        register_setting('bullet_offer_settings', 'bop_background_color');
+        register_setting('bullet_offer_settings', 'bop_text_color');
+        register_setting('bullet_offer_settings', 'bop_button_background_color');
+        register_setting('bullet_offer_settings', 'bop_button_text_color' );
     }
 
     public function settings_page_html() {
@@ -87,12 +93,32 @@ class BulletOfferPopup {
                         <td><input type="number" name="bop_scroll_trigger" value="<?php echo esc_attr(get_option('bop_scroll_trigger', 300)); ?>" /></td>
                     </tr>
                     <tr valign="top">
-                        <th scope="row">Display Time (seconds)</th>
-                        <td><input type="number" name="bop_display_time" value="<?php echo esc_attr(get_option('bop_display_time', 10)); ?>" /></td>
+                        <th scope="row">Popup Background Color</th>
+                        <td><input type="color" name="bop_background_color" value="<?php echo esc_attr(get_option('bop_background_color', '#ffffff')); ?>" /></td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Popup Text Color</th>
+                        <td><input type="color" name="bop_text_color" value="<?php echo esc_attr(get_option('bop_text_color', '#000000')); ?>" /></td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Button Background Color</th>
+                        <td><input type="color" name="bop_button_background_color" value="<?php echo esc_attr(get_option('bop_btn_background_color', '#008000')); ?>" /></td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">button Text Color</th>
+                        <td><input type="color" name="bop_button_text_color" value="<?php echo esc_attr(get_option('bop_button_text_color', '#fff')); ?>" /></td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Display Time (seconds) [1-60]</th>
+                        <td><input type="number" min="1" max="60" name="bop_display_time" value="<?php echo esc_attr(get_option('bop_display_time', 10)); ?>" /></td>
                     </tr>
                     <tr valign="top">
                         <th scope="row">Popup Message</th>
                         <td><input type="text" name="bop_message" value="<?php echo esc_attr(get_option('bop_message')); ?>" size="50" /></td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Offer Color</th>
+                        <td><input type="color" name="bop_message_color" value="<?php echo esc_attr(get_option('bop_message_color', ' #ff0000')); ?>" /></td>
                     </tr>
                     <tr valign="top">
                         <th scope="row">Discount Text</th>
@@ -247,10 +273,14 @@ class BulletOfferPopup {
             'image' => $image_url,
             'title' => $title,
             'siteUrl' => 'http://stylcommerce.local/checkout',
-            'cooldown' => get_option('bop_cooldown', 24)
+            'cooldown' => get_option('bop_cooldown', 24),
+            'backgroundColor' => get_option('bop_background_color', '#ffffff'),
+            'textColor' => get_option('bop_text_color', '#000000'),
+            "btnBackgroundColor" => get_option('bop_button_background_color', '008000'),
+            "msgColor" => get_option('bop_message_color', '#ff0000'),
+            'btnTextColor' => get_option('bop_button_text_color', '#fff'),
         ));
     }
-
 
 
     public function inject_popup_html() {
