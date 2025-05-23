@@ -76,6 +76,8 @@ class BulletOfferPopup {
         register_setting('bullet_offer_settings', 'bop_text_color');
         register_setting('bullet_offer_settings', 'bop_button_background_color');
         register_setting('bullet_offer_settings', 'bop_button_text_color' );
+        register_setting('bullet_offer_settings', 'bop_button_background_hover_color');
+        register_setting('bullet_offer_settings', 'bop_button_text_hover_color');
     }
 
     public function settings_page_html() {
@@ -105,8 +107,16 @@ class BulletOfferPopup {
                         <td><input type="color" name="bop_button_background_color" value="<?php echo esc_attr(get_option('bop_btn_background_color', '#008000')); ?>" /></td>
                     </tr>
                     <tr valign="top">
-                        <th scope="row">button Text Color</th>
+                        <th scope="row">Button Text Color</th>
                         <td><input type="color" name="bop_button_text_color" value="<?php echo esc_attr(get_option('bop_button_text_color', '#fff')); ?>" /></td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Button Hover Background Color</th>
+                        <td><input type="color" name="bop_button_background_hover_color" value="<?php echo esc_attr(get_option('bop_button_background_hover_color', '#000000')); ?>" /></td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Button Hover Text Color</th>
+                        <td><input type="color" name="bop_button_text_hover_color" value="<?php echo esc_attr(get_option('bop_button_text_hover_color', '#ffffff')); ?>" /></td>
                     </tr>
                     <tr valign="top">
                         <th scope="row">Display Time (seconds) [1-60]</th>
@@ -172,82 +182,97 @@ class BulletOfferPopup {
                         'key' => '_stock_status',
                         'value' => 'instock',
                     ),
+                    array(
+                        'relation' => 'OR',
+                        array(
+                            'key' => '_manage_stock',
+                            'value' => 'yes',
+                            'compare' => '='
+                        ),
+                        array(
+                            'key' => '_manage_stock',
+                            'value' => 'no',
+                            'compare' => '='
+                        ),
+                        array(
+                            'key' => '_manage_stock',
+                            'compare' => 'NOT EXISTS'
+                        ),
+                    ),
                 ),
             );
 
+
             $products = get_posts($product_props);
 
-            $eligible_products = array();
+            $eligible_products = [];
 
             foreach ($products as $product_post) {
                 $product = wc_get_product($product_post->ID);
-                if (!$product) continue;
+                if (!$product || !$product->is_in_stock()) continue;
 
                 if ($product->is_type('variable')) {
-                    $total_stock = 0;
+                    $valid_variations = [];
+
                     foreach ($product->get_children() as $child_id) {
                         $variation = wc_get_product($child_id);
-                        if ($variation && $variation->is_in_stock()) {
-                            $total_stock += $variation->get_stock_quantity() ?? 0;
+                        if (!$variation || !$variation->is_in_stock()) continue;
+
+                        $manages_stock = $variation->managing_stock();
+                        $stock_qty = $variation->get_stock_quantity();
+
+                        if (!$manages_stock || $stock_qty >= 5) {
+                            $valid_variations[] = $variation;
                         }
                     }
-                    if ($total_stock >= 5) {
+
+                    if (!empty($valid_variations)) {
+                        $eligible_products[] = $valid_variations[array_rand($valid_variations)];
+                    }
+
+                } elseif ($product->is_type('grouped')) {
+                    $valid_children = [];
+
+                    foreach ($product->get_children() as $child_id) {
+                        $child = wc_get_product($child_id);
+                        if (!$child || !$child->is_in_stock()) continue;
+
+                        $manages_stock = $child->managing_stock();
+                        $stock_qty = $child->get_stock_quantity();
+
+                        if (!$manages_stock || $stock_qty >= 5) {
+                            $valid_children[] = $child;
+                        }
+                    }
+
+                    if (!empty($valid_children)) {
+                        $eligible_products[] = $valid_children[array_rand($valid_children)];
+                    }
+
+                } else {
+                    $manages_stock = $product->managing_stock();
+                    $stock_qty = $product->get_stock_quantity();
+
+                    if (!$manages_stock || $stock_qty >= 5) {
                         $eligible_products[] = $product;
                     }
-                } else {
-                   $stock = $product->get_stock_quantity() ?? 0;
-                   if ($stock >= 5) {
-                       $eligible_products[] = $product;
-                   }
                 }
             }
 
+// Pick a random eligible product
             if (!empty($eligible_products)) {
                 $random_product = $eligible_products[array_rand($eligible_products)];
 
-                if ($random_product->is_type('variable') && isset($random_product)) {
-                    $variations = $random_product->get_children();
-                    $in_stock_variations = [];
-
-                    foreach ($variations as $variation_id) {
-                        $variation = wc_get_product($variation_id);
-                        if ($variation && $variation->is_in_stock()) {
-                            $in_stock_variations[] = $variation;
-                        }
-                    }
-
-                    if (!empty($in_stock_variations)) {
-                        $random_product = $in_stock_variations[array_rand($in_stock_variations)];
-                    } else {
-                        // no in-stock variations, skip popup
-                        return;
-                    }
-
-                } elseif ($random_product->is_type('grouped') && isset($random_product)) {
-                    $children_ids = $random_product->get_children();
-                    $in_stock_children = [];
-
-                    foreach ($children_ids as $child_id) {
-                        $child = wc_get_product($child_id);
-                        if ($child && $child->is_in_stock()) {
-                            $in_stock_children[] = $child;
-                        }
-                    }
-
-                    if (!empty($in_stock_children)) {
-                        $random_product = $in_stock_children[array_rand($in_stock_children)];
-                    } else {
-                        // no in-stock group children, skip popup
-                        return;
-                    }
-                }
+                // Prepare display data
+                $product_id = $random_product->get_id();
+                $title = $random_product->get_name();
+                $image_url = get_the_post_thumbnail_url($product_id, 'thumbnail');
+                // ... inject these into your popup here
+            } else {
+                // No eligible product found, abort popup
+                return;
             }
 
-            if (isset($random_product)) {
-                        $product_id = $random_product->get_id();
-                        $title = get_the_title($product_id);
-                        $image_url = get_the_post_thumbnail_url($product_id, 'thumbnail');
-            }
 
 
 
@@ -279,6 +304,8 @@ class BulletOfferPopup {
             "btnBackgroundColor" => get_option('bop_button_background_color', '008000'),
             "msgColor" => get_option('bop_message_color', '#ff0000'),
             'btnTextColor' => get_option('bop_button_text_color', '#fff'),
+            'buttonHoverBgColor' => get_option('bop_button_background_hover_color', '#000000'),
+            'buttonHoverTextColor' => get_option('bop_button_text_hover_color', '#ffffff'),
         ));
     }
 

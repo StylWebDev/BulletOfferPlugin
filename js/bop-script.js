@@ -6,6 +6,7 @@
     $(window).on('scroll', function() {
         if (popupShown) return;
 
+
         if ($(window).scrollTop() > bopData.scrollTrigger && bopData.productID !== '0') {
 
             // Check cooldown from localStorage
@@ -44,7 +45,7 @@
                     <p  style="text-align: center;margin-bottom: 2px; font-weight: bold;  ">${bopData.message.toUpperCase()}</p>
                     <div id="offer">
                       <img id="product_img" src="${bopData.image}" alt="${bopData.title}" ">                 
-                      <span>${bopData.discount}</span>
+                      <span style="text-align: center">${bopData.discount}</span>
                     </div>
                     
                     
@@ -64,13 +65,20 @@
 
             popup.css({ visibility: 'visible', opacity: '1' });
 
+            $('#bop-checkout').css({backgroundColor: bopData.btnBackgroundColor, color: bopData.btnTextColor})
+            $("#bop-checkout").mouseenter(function() {
+                $(this).css({backgroundColor: bopData.buttonHoverBgColor, color: bopData.buttonHoverTextColor});
+            }).mouseleave(function() {
+                $(this).css({backgroundColor: bopData.btnBackgroundColor, color: bopData.btnTextColor});
+            });
             $('#btn-img') .attr("src",`https://api.iconify.design/fluent:payment-28-filled.svg?color=%23${bopData.btnTextColor.replace('#','')}`);
+
             $('#bop-timer span').css('background', bopData.textColor);
             $('#bop-countdown').css('background', bopData.msgColor)
             $('#bop-title').css('color', bopData.textColor + 'BB')
-            $('#bop-checkout').css({background: bopData.btnBackgroundColor, color: bopData.btnTextColor})
             $('#offer span').css('color', bopData.msgColor)
             $('#bop-progress-bar').css('background', bopData.msgColor)
+
 
             let countdown = bopData.displayTime;
             const countdownInterval = setInterval(() => {

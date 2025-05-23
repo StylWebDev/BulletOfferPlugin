@@ -43,8 +43,7 @@
     transition: all 0.4s ease-in-out;
 }
 #bop-checkout:hover {
-    background-color: #000000;
-    transform: scale(110%);
+    transition: all 0.2s ease-in;
 }
 
 #bop-timer{
